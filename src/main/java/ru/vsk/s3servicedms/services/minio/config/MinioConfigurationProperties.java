@@ -8,7 +8,7 @@ import java.time.Duration;
 @ConfigurationProperties("spring.minio")
 @Data
 public class MinioConfigurationProperties {
-    private String url = "http://127.0.0.1:9000";
+    private String url = "http://127.0.0.1:9001";
 
     /**
      * Access key (login) on Minio instance

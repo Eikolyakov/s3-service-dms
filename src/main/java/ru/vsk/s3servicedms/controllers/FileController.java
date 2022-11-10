@@ -21,6 +21,7 @@ import java.nio.file.Path;
 public class FileController {
     private final MinioService minioService;
 
+
     @PostMapping()
     public void uploadFile(@RequestParam("file") MultipartFile file, @RequestParam("bucket") String bucket) {
         Path path = Path.of(file.getOriginalFilename());
