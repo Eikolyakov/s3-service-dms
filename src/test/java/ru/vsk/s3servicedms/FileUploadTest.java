@@ -1,11 +1,16 @@
 package ru.vsk.s3servicedms;
 
 import com.google.protobuf.ByteString;
+import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
 import io.grpc.stub.StreamObserver;
+import net.devh.boot.grpc.client.inject.GrpcClient;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.context.junit.jupiter.SpringJUnitConfig;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -19,13 +24,11 @@ import java.util.concurrent.Executors;
 
 public class FileUploadTest {
 
-    private static final GRPCServer SERVER = new GRPCServer();
-    private static final Executor EXECUTOR = Executors.newSingleThreadExecutor();
     private FileServiceGrpc.FileServiceStub fileServiceStub;
+    private ManagedChannel channel;
 
     @Before
     public void setup(){
-        EXECUTOR.execute(SERVER::start);
         var channel = ManagedChannelBuilder.forAddress("localhost", 6565)
                 .usePlaintext()
                 .build();
@@ -33,6 +36,7 @@ public class FileUploadTest {
     }
 
     @Test
+    @DirtiesContext
     public void unaryServiceTest() throws IOException, InterruptedException {
         var latch = new CountDownLatch(1);
         StreamObserver<FileUploadRequest> streamObserver = this.fileServiceStub.upload(new FileUploadObserver(latch));
@@ -62,11 +66,6 @@ public class FileUploadTest {
         inputStream.close();
         streamObserver.onCompleted();
         latch.await();
-    }
-
-    @After
-    public void teardown(){
-        SERVER.stop();
     }
 
     private static class FileUploadObserver implements StreamObserver<FileUploadResponse> {

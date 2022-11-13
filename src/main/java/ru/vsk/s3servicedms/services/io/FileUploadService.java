@@ -4,19 +4,16 @@ import com.google.protobuf.ByteString;
 import io.grpc.stub.StreamObserver;
 import lombok.RequiredArgsConstructor;
 import net.devh.boot.grpc.server.service.GrpcService;
-import org.apache.commons.compress.utils.IOUtils;
 import ru.vsk.s3servicedms.FileServiceGrpc;
 import ru.vsk.s3servicedms.FileUploadRequest;
 import ru.vsk.s3servicedms.FileUploadResponse;
 import ru.vsk.s3servicedms.Status;
 import ru.vsk.s3servicedms.services.minio.MinioService;
+import ru.vsk.s3servicedms.services.minio.exceptions.MinioException;
 
 import java.io.*;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.nio.file.StandardOpenOption;
-
 
 
 @RequiredArgsConstructor
@@ -29,14 +26,15 @@ public class FileUploadService extends FileServiceGrpc.FileServiceImplBase {
     @Override
     public StreamObserver<FileUploadRequest> upload(StreamObserver<FileUploadResponse> responseObserver) {
         return new StreamObserver<FileUploadRequest>() {
-            OutputStream writer;
+            ByteArrayOutputStream writer;
             Status status = Status.IN_PROGRESS;
+            Path path;
 
             @Override
             public void onNext(FileUploadRequest fileUploadRequest) {
                 try{
                     if(fileUploadRequest.hasMetadata()){
-                        writer = getFilePath(fileUploadRequest);
+                        path = getFilePath(fileUploadRequest);
                     }else{
                         writeFile(writer, fileUploadRequest.getFile().getContent());
                     }
@@ -53,6 +51,12 @@ public class FileUploadService extends FileServiceGrpc.FileServiceImplBase {
 
             @Override
             public void onCompleted() {
+                InputStream is = new ByteArrayInputStream(writer.toByteArray());
+                try {
+                    minioService.upload(path, is);
+                } catch (MinioException e) {
+                    throw new RuntimeException(e);
+                }
                 closeFile(writer);
                 status = Status.IN_PROGRESS.equals(status) ? Status.SUCCESS : status;
                 FileUploadResponse response = FileUploadResponse.newBuilder()
@@ -64,9 +68,9 @@ public class FileUploadService extends FileServiceGrpc.FileServiceImplBase {
         };
     }
 
-    private OutputStream getFilePath(FileUploadRequest request) throws IOException {
+    private Path getFilePath(FileUploadRequest request) throws IOException {
         var fileName = request.getMetadata().getName() + "." + request.getMetadata().getType();
-        return Files.newOutputStream(SERVER_BASE_PATH.resolve(fileName), StandardOpenOption.CREATE, StandardOpenOption.APPEND);
+        return Path.of(fileName);
     }
 
     private void writeFile(OutputStream writer, ByteString content) throws IOException {
